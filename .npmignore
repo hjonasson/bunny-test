@@ -1,0 +1,6 @@
+src/**/*.test.ts
+src/**/*.test.js
+src/**/*.test.tsx
+src/**/*.spec.ts
+src/**/*.spec.js
+src/**/*.spec.tsx

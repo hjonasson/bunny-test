@@ -1,0 +1,58 @@
+{
+  "name": "bunny-test",
+  "version": "0.1.0",
+  "description": "A lightweight Bun-first end-to-end test framework for small browser flows.",
+  "author": "hjonasson",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hjonasson/bunny-test.git"
+  },
+  "homepage": "https://github.com/hjonasson/bunny-test#readme",
+  "bugs": {
+    "url": "https://github.com/hjonasson/bunny-test/issues"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "LICENSE",
+    "README.md",
+    "assets/branding/bunny-test-readme.png",
+    "dist"
+  ],
+  "keywords": [
+    "bun",
+    "e2e",
+    "testing",
+    "browser",
+    "screenshot-testing"
+  ],
+  "engines": {
+    "bun": ">=1.3.14"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "prepack": "npm run build",
+    "test": "bun test",
+    "test:debug": "DEBUG=1 bun test --timeout 60000",
+    "pack:check": "npm pack --dry-run"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/pngjs": "^6.0.5",
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "pixelmatch": "^7.2.0",
+    "pngjs": "^7.0.0"
+  }
+}
