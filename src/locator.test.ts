@@ -137,16 +137,17 @@ test("expect(page).toMatchScreenshot creates and compares snapshots", async () =
   }
 });
 
-test("can compare the saved Page one failure screenshot against a Page two render", async () => {
+test("can compare a saved Page one baseline against a Page two render", async () => {
   const snapshotDir = mkdtempSync(join(tmpdir(), "bun-e2e-demo-shot-"));
-  const baselinePath = join(
-    process.cwd(),
-    "failure-getByRole-button-1779924168516.png",
-  );
-  const snapshotName = basename(baselinePath);
+  const snapshotName = "page-one-demo.png";
 
   try {
-    await Bun.write(join(snapshotDir, snapshotName), Bun.file(baselinePath));
+    page = await Page.launch(html(`<button>Page one</button>`));
+    await Bun.write(
+      join(snapshotDir, snapshotName),
+      await page.screenshotBytes(),
+    );
+    await page.close();
 
     page = await Page.launch(html(`<button>Page two</button>`));
 
