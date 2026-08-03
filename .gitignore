@@ -5,9 +5,7 @@ node_modules
 out
 dist
 *.tgz
-failure-*.png
 __screenshots__/
-
 # code coverage
 coverage
 *.lcov
