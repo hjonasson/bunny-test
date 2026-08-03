@@ -46,10 +46,11 @@ The main pieces are:
 import { test } from "bun:test";
 import { Page, expect } from "bunny-test";
 
-test("user can submit the form", async () => {
+test("user can sign in", async () => {
   await using page = await Page.launch("http://localhost:3000");
 
   await page.fill("input[name='email']", "user@example.com");
+  await page.fill("input[name='password']", "correct-horse-battery-staple");
   await page.click("button[type='submit']");
 
   await expect(page.byText("Thanks for signing in")).toBeVisible();
@@ -79,7 +80,7 @@ Use `withServerPage()` when the test should start an application process, wait f
 import { test } from "bun:test";
 import { expect, withServerPage } from "bunny-test";
 
-test("front page renders expected content", async () => {
+test("front page shows welcome content", async () => {
   await withServerPage(
     {
       server: {
@@ -139,7 +140,7 @@ Common patterns include:
 import { test } from "bun:test";
 import { Page, expect, screenshotName } from "bunny-test";
 
-test("home page screenshot", async () => {
+test("home page matches screenshot", async () => {
   await using page = await Page.launch("http://localhost:3000", {
     width: 1280,
     height: 720,
