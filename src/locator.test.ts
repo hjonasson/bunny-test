@@ -88,6 +88,113 @@ test("expect(page) retries title and URL assertions", async () => {
   await e2eExpect(page).toHaveTitle("Ready", { timeout: 1000 });
 });
 
+test("failed locator text assertions include actual text and debug output", async () => {
+  page = await Page.launch(html(`<button>Save draft</button>`));
+
+  try {
+    await e2eExpect(page.byRole("button", { name: "Save draft" })).toHaveText(
+      "Publish",
+      { timeout: 50 },
+    );
+    throw new Error("Expected toHaveText to fail");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    bunExpect(message).toContain(
+      'Expectation failed for role="button" name="Save draft"',
+    );
+    bunExpect(message).toContain("Expected: Publish");
+    bunExpect(message).toContain('Actual: "Save draft"');
+    bunExpect(message).toContain("Available roles:");
+  }
+});
+
+test("failed locator visibility assertions include debug output", async () => {
+  page = await Page.launch(
+    html(
+      `<button id="hidden-action" style="display:none">Hidden action</button>`,
+    ),
+  );
+
+  try {
+    await e2eExpect(page.locator("#hidden-action")).toBeVisible({
+      timeout: 50,
+    });
+    throw new Error("Expected toBeVisible to fail");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    bunExpect(message).toContain("Expected: visible");
+    bunExpect(message).toContain('Actual: "not visible"');
+    bunExpect(message).toContain("<button");
+  }
+});
+
+test("failed page title assertions include actual title and page debug output", async () => {
+  page = await Page.launch(
+    html(`<script>document.title = 'Loading';</script><main>Home</main>`),
+  );
+
+  try {
+    await e2eExpect(page).toHaveTitle("Ready", { timeout: 50 });
+    throw new Error("Expected toHaveTitle to fail");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    bunExpect(message).toContain("Expected Title: Ready");
+    bunExpect(message).toContain('Actual Title: "Loading"');
+    bunExpect(message).toContain("Current URL: data:text/html");
+    bunExpect(message).toContain("<main>");
+  }
+});
+
+test("failed locator enabled assertions include actual state and debug output", async () => {
+  page = await Page.launch(html(`<button disabled>Submit</button>`));
+
+  try {
+    await e2eExpect(page.byRole("button", { name: "Submit" })).toBeEnabled({
+      timeout: 50,
+    });
+    throw new Error("Expected toBeEnabled to fail");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    bunExpect(message).toContain("Expected: enabled");
+    bunExpect(message).toContain('Actual: "disabled"');
+    bunExpect(message).toContain("Submit");
+  }
+});
+
+test("failed locator disabled assertions include actual state and debug output", async () => {
+  page = await Page.launch(html(`<button>Submit</button>`));
+
+  try {
+    await e2eExpect(page.byRole("button", { name: "Submit" })).toBeDisabled({
+      timeout: 50,
+    });
+    throw new Error("Expected toBeDisabled to fail");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    bunExpect(message).toContain("Expected: disabled");
+    bunExpect(message).toContain('Actual: "enabled"');
+    bunExpect(message).toContain("Submit");
+  }
+});
+
+test("failed locator checked assertions include actual state and debug output", async () => {
+  page = await Page.launch(
+    html(`<label><input type="checkbox" /> Receive updates</label>`),
+  );
+
+  try {
+    await e2eExpect(page.byLabelText("Receive updates")).toBeChecked({
+      timeout: 50,
+    });
+    throw new Error("Expected toBeChecked to fail");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    bunExpect(message).toContain("Expected: checked");
+    bunExpect(message).toContain('Actual: "not checked"');
+    bunExpect(message).toContain("Receive updates");
+  }
+});
+
 test("expect(page).toMatchScreenshot creates and compares snapshots", async () => {
   const snapshotDir = mkdtempSync(join(tmpdir(), "bun-e2e-screens-"));
 

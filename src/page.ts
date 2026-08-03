@@ -31,11 +31,13 @@ import {
   queryByTestIdWithin,
   getByAltText,
   getByTitle,
+  type QueryMatcher,
   type QueryOptions,
   type RoleOptions,
 } from "./query";
 import { ensureInjected } from "./inject";
 import { EvaluateQueue } from "./evaluate-queue";
+import { renderDebug, type DebugOptions } from "./debug";
 import type { CookieState } from "./browser-context";
 import {
   Locator,
@@ -45,6 +47,10 @@ import {
 import type { SerializedRouteMock } from "./network";
 import type { BrowserContext, StorageState } from "./browser-context";
 import { PNG } from "pngjs";
+
+function formatMatcher(value: QueryMatcher): string {
+  return value instanceof RegExp ? String(value) : `"${value}"`;
+}
 
 export class Page {
   // Private so tests never access the view directly
@@ -225,6 +231,8 @@ export class Page {
           clipPadding: options.padding,
           maskSelectors: options.maskSelectors,
         }),
+      debug: (selector, options = {}, description) =>
+        this.#debug(selector, options, description),
       fill: (selector, text, options = {}) =>
         this.fill(selector, text, options),
       press: (key, options = {}) => this.press(key, options),
@@ -331,7 +339,7 @@ export class Page {
 
   byRole(role: string, options: RoleOptions = {}): Locator {
     return new Locator(this.#locatorAdapter(), {
-      description: `role="${role}"${options.name ? ` name="${options.name}"` : ""}`,
+      description: `role="${role}"${options.name ? ` name=${formatMatcher(options.name)}` : ""}`,
       resolve: () => getByRole(this.#view, this.#queue, role, options),
       query: () => queryByRole(this.#view, this.#queue, role, options),
       count: async () =>
@@ -343,9 +351,9 @@ export class Page {
     });
   }
 
-  byText(text: string, options: QueryOptions = {}): Locator {
+  byText(text: QueryMatcher, options: QueryOptions = {}): Locator {
     return new Locator(this.#locatorAdapter(), {
-      description: `text="${text}"`,
+      description: `text=${formatMatcher(text)}`,
       resolve: () => getByText(this.#view, this.#queue, text, options),
       query: () => queryByText(this.#view, this.#queue, text, options),
       count: async () =>
@@ -357,9 +365,9 @@ export class Page {
     });
   }
 
-  byLabelText(text: string, options: QueryOptions = {}): Locator {
+  byLabelText(text: QueryMatcher, options: QueryOptions = {}): Locator {
     return new Locator(this.#locatorAdapter(), {
-      description: `label="${text}"`,
+      description: `label=${formatMatcher(text)}`,
       resolve: () => getByLabelText(this.#view, this.#queue, text, options),
       query: () => queryByLabelText(this.#view, this.#queue, text, options),
       count: async () =>
@@ -373,9 +381,9 @@ export class Page {
     });
   }
 
-  byPlaceholderText(text: string, options: QueryOptions = {}): Locator {
+  byPlaceholderText(text: QueryMatcher, options: QueryOptions = {}): Locator {
     return new Locator(this.#locatorAdapter(), {
-      description: `placeholder="${text}"`,
+      description: `placeholder=${formatMatcher(text)}`,
       resolve: () =>
         getByPlaceholderText(this.#view, this.#queue, text, options),
       query: () =>
@@ -417,6 +425,10 @@ export class Page {
     options: WaitOptions = {},
   ): Promise<NetworkResponse> {
     return this.#waitForNetworkEvent("response", matcher, options);
+  }
+
+  async debug(options: DebugOptions = {}): Promise<string> {
+    return this.#debug(undefined, options);
   }
 
   // -------------------------
@@ -805,7 +817,6 @@ export class Page {
     try {
       return await getByRole(this.#view, this.#queue, role, options);
     } catch (err) {
-      await this.#screenshotOnFailure(`getByRole-${role}`);
       throw enrichError(err, `getByRole("${role}")`);
     }
   }
@@ -817,50 +828,50 @@ export class Page {
     return queryByRole(this.#view, this.#queue, role, options);
   }
 
-  async getByText(text: string, options: QueryOptions = {}): Promise<string> {
+  async getByText(
+    text: QueryMatcher,
+    options: QueryOptions = {},
+  ): Promise<string> {
     try {
       return await getByText(this.#view, this.#queue, text, options);
     } catch (err) {
-      await this.#screenshotOnFailure("getByText");
-      throw enrichError(err, `getByText("${text}")`);
+      throw enrichError(err, `getByText(${formatMatcher(text)})`);
     }
   }
 
   async queryByText(
-    text: string,
+    text: QueryMatcher,
     options: QueryOptions = {},
   ): Promise<string | null> {
     return queryByText(this.#view, this.#queue, text, options);
   }
 
   async getByLabelText(
-    text: string,
+    text: QueryMatcher,
     options: QueryOptions = {},
   ): Promise<string> {
     try {
       return await getByLabelText(this.#view, this.#queue, text, options);
     } catch (err) {
-      await this.#screenshotOnFailure("getByLabelText");
-      throw enrichError(err, `getByLabelText("${text}")`);
+      throw enrichError(err, `getByLabelText(${formatMatcher(text)})`);
     }
   }
 
   async queryByLabelText(
-    text: string,
+    text: QueryMatcher,
     options: QueryOptions = {},
   ): Promise<string | null> {
     return queryByLabelText(this.#view, this.#queue, text, options);
   }
 
   async getByPlaceholderText(
-    text: string,
+    text: QueryMatcher,
     options: QueryOptions = {},
   ): Promise<string> {
     try {
       return await getByPlaceholderText(this.#view, this.#queue, text, options);
     } catch (err) {
-      await this.#screenshotOnFailure("getByPlaceholderText");
-      throw enrichError(err, `getByPlaceholderText("${text}")`);
+      throw enrichError(err, `getByPlaceholderText(${formatMatcher(text)})`);
     }
   }
 
@@ -871,7 +882,6 @@ export class Page {
     try {
       return await getByTestId(this.#view, this.#queue, testId, options);
     } catch (err) {
-      await this.#screenshotOnFailure(`getByTestId-${testId}`);
       throw enrichError(err, `getByTestId("${testId}")`);
     }
   }
@@ -890,7 +900,6 @@ export class Page {
     try {
       return await getByAltText(this.#view, this.#queue, text, options);
     } catch (err) {
-      await this.#screenshotOnFailure("getByAltText");
       throw enrichError(err, `getByAltText("${text}")`);
     }
   }
@@ -899,7 +908,6 @@ export class Page {
     try {
       return await getByTitle(this.#view, this.#queue, text, options);
     } catch (err) {
-      await this.#screenshotOnFailure("getByTitle");
       throw enrichError(err, `getByTitle("${text}")`);
     }
   }
@@ -1190,6 +1198,20 @@ export class Page {
     }
 
     return clip;
+  }
+
+  async #debug(
+    selector: string | null | undefined,
+    options: DebugOptions = {},
+    description?: string,
+  ): Promise<string> {
+    await ensureInjected(this.#view, this.#queue);
+    return renderDebug(
+      (script) => this.evaluate(script),
+      selector,
+      options,
+      description,
+    );
   }
 }
 

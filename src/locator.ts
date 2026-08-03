@@ -1,6 +1,7 @@
 import { waitUntil, type WaitOptions } from "./wait";
 import type { ClickOptions, FillOptions, PressOptions } from "./page";
-import type { QueryOptions, RoleOptions } from "./query";
+import type { QueryMatcher, QueryOptions, RoleOptions } from "./query";
+import type { DebugOptions } from "./debug";
 
 export type LocatorState = "attached" | "detached" | "visible" | "hidden";
 
@@ -10,23 +11,75 @@ export interface LocatorWaitOptions extends WaitOptions {
 
 export type LocatorAdapter = {
   click(selector: string, options?: ClickOptions): Promise<void>;
-  screenshot(selector: string, options?: InternalLocatorScreenshotOptions): Promise<Blob>;
+  screenshot(
+    selector: string,
+    options?: InternalLocatorScreenshotOptions,
+  ): Promise<Blob>;
+  debug(
+    selector: string | null,
+    options?: DebugOptions,
+    description?: string,
+  ): Promise<string>;
   fill(selector: string, text: string, options?: FillOptions): Promise<void>;
   press(key: string, options?: PressOptions): Promise<void>;
   evaluate<T>(script: string): Promise<T>;
   count(selector: string): Promise<number>;
   nth(selector: string, index: number): Promise<string | null>;
-  getByRole(parentSelector: string | undefined, role: string, options?: RoleOptions): Promise<string>;
-  queryByRole(parentSelector: string | undefined, role: string, options?: RoleOptions): Promise<string | null>;
-  getByText(parentSelector: string | undefined, text: string, options?: QueryOptions): Promise<string>;
-  queryByText(parentSelector: string | undefined, text: string, options?: QueryOptions): Promise<string | null>;
-  getByLabelText(parentSelector: string | undefined, text: string, options?: QueryOptions): Promise<string>;
-  queryByLabelText(parentSelector: string | undefined, text: string, options?: QueryOptions): Promise<string | null>;
-  getByPlaceholderText(parentSelector: string | undefined, text: string, options?: QueryOptions): Promise<string>;
-  queryByPlaceholderText(parentSelector: string | undefined, text: string, options?: QueryOptions): Promise<string | null>;
-  getByTestId(parentSelector: string | undefined, testId: string, options?: QueryOptions): Promise<string>;
-  queryByTestId(parentSelector: string | undefined, testId: string, options?: QueryOptions): Promise<string | null>;
+  getByRole(
+    parentSelector: string | undefined,
+    role: string,
+    options?: RoleOptions,
+  ): Promise<string>;
+  queryByRole(
+    parentSelector: string | undefined,
+    role: string,
+    options?: RoleOptions,
+  ): Promise<string | null>;
+  getByText(
+    parentSelector: string | undefined,
+    text: QueryMatcher,
+    options?: QueryOptions,
+  ): Promise<string>;
+  queryByText(
+    parentSelector: string | undefined,
+    text: QueryMatcher,
+    options?: QueryOptions,
+  ): Promise<string | null>;
+  getByLabelText(
+    parentSelector: string | undefined,
+    text: QueryMatcher,
+    options?: QueryOptions,
+  ): Promise<string>;
+  queryByLabelText(
+    parentSelector: string | undefined,
+    text: QueryMatcher,
+    options?: QueryOptions,
+  ): Promise<string | null>;
+  getByPlaceholderText(
+    parentSelector: string | undefined,
+    text: QueryMatcher,
+    options?: QueryOptions,
+  ): Promise<string>;
+  queryByPlaceholderText(
+    parentSelector: string | undefined,
+    text: QueryMatcher,
+    options?: QueryOptions,
+  ): Promise<string | null>;
+  getByTestId(
+    parentSelector: string | undefined,
+    testId: string,
+    options?: QueryOptions,
+  ): Promise<string>;
+  queryByTestId(
+    parentSelector: string | undefined,
+    testId: string,
+    options?: QueryOptions,
+  ): Promise<string | null>;
 };
+
+function formatMatcher(value: QueryMatcher): string {
+  return value instanceof RegExp ? String(value) : `"${value}"`;
+}
 
 export type LocatorResolver = {
   description: string;
@@ -78,13 +131,17 @@ export class Locator {
       resolve: async () => {
         const nested = await this.#nestedSelector(selector, true);
         if (!nested) {
-          throw new Error(`Could not find element: ${this.#resolver.description} >> ${selector}`);
+          throw new Error(
+            `Could not find element: ${this.#resolver.description} >> ${selector}`,
+          );
         }
         return nested;
       },
       query: () => this.#nestedSelector(selector, false),
-      count: async () => ((await this.#nestedSelector(selector, false)) ? 1 : 0),
-      nth: async (index) => (index === 0 ? this.#nestedSelector(selector, false) : null),
+      count: async () =>
+        (await this.#nestedSelector(selector, false)) ? 1 : 0,
+      nth: async (index) =>
+        index === 0 ? this.#nestedSelector(selector, false) : null,
     });
   }
 
@@ -98,7 +155,9 @@ export class Locator {
       resolve: async () => {
         const count = await this.#resolver.count();
         if (count === 0) {
-          throw new Error(`Could not find element: ${this.#resolver.description} >> last()`);
+          throw new Error(
+            `Could not find element: ${this.#resolver.description} >> last()`,
+          );
         }
         return (await this.#resolver.nth(count - 1)) as string;
       },
@@ -121,13 +180,16 @@ export class Locator {
       resolve: async () => {
         const selector = await this.#resolver.nth(index);
         if (!selector) {
-          throw new Error(`Could not find element: ${this.#resolver.description} >> nth(${index})`);
+          throw new Error(
+            `Could not find element: ${this.#resolver.description} >> nth(${index})`,
+          );
         }
         return selector;
       },
       query: () => this.#resolver.nth(index),
       count: async () => ((await this.#resolver.nth(index)) ? 1 : 0),
-      nth: async (nextIndex) => (nextIndex === 0 ? this.#resolver.nth(index) : null),
+      nth: async (nextIndex) =>
+        nextIndex === 0 ? this.#resolver.nth(index) : null,
     });
   }
 
@@ -137,7 +199,9 @@ export class Locator {
       resolve: async () => {
         const selector = await this.#filteredNth(options, 0);
         if (!selector) {
-          throw new Error(`Could not find element: ${this.#resolver.description} >> filter()`);
+          throw new Error(
+            `Could not find element: ${this.#resolver.description} >> filter()`,
+          );
         }
         return selector;
       },
@@ -149,31 +213,34 @@ export class Locator {
 
   getByRole(role: string, options: RoleOptions = {}): Locator {
     return this.#scopedQuery(
-      `role="${role}"${options.name ? ` name="${options.name}"` : ""}`,
+      `role="${role}"${options.name ? ` name=${formatMatcher(options.name)}` : ""}`,
       (parent) => this.#adapter.getByRole(parent, role, options),
       (parent) => this.#adapter.queryByRole(parent, role, options),
     );
   }
 
-  getByText(text: string, options: QueryOptions = {}): Locator {
+  getByText(text: QueryMatcher, options: QueryOptions = {}): Locator {
     return this.#scopedQuery(
-      `text="${text}"`,
+      `text=${formatMatcher(text)}`,
       (parent) => this.#adapter.getByText(parent, text, options),
       (parent) => this.#adapter.queryByText(parent, text, options),
     );
   }
 
-  getByLabelText(text: string, options: QueryOptions = {}): Locator {
+  getByLabelText(text: QueryMatcher, options: QueryOptions = {}): Locator {
     return this.#scopedQuery(
-      `label="${text}"`,
+      `label=${formatMatcher(text)}`,
       (parent) => this.#adapter.getByLabelText(parent, text, options),
       (parent) => this.#adapter.queryByLabelText(parent, text, options),
     );
   }
 
-  getByPlaceholderText(text: string, options: QueryOptions = {}): Locator {
+  getByPlaceholderText(
+    text: QueryMatcher,
+    options: QueryOptions = {},
+  ): Locator {
     return this.#scopedQuery(
-      `placeholder="${text}"`,
+      `placeholder=${formatMatcher(text)}`,
       (parent) => this.#adapter.getByPlaceholderText(parent, text, options),
       (parent) => this.#adapter.queryByPlaceholderText(parent, text, options),
     );
@@ -196,7 +263,9 @@ export class Locator {
     const selector = await this.#resolver.resolve();
     const maskSelectors = await Promise.all(
       (options.mask ?? []).map((target) =>
-        typeof target === "string" ? Promise.resolve(target) : target.selector(),
+        typeof target === "string"
+          ? Promise.resolve(target)
+          : target.selector(),
       ),
     );
     return this.#adapter.screenshot(selector, {
@@ -212,6 +281,14 @@ export class Locator {
     await Bun.write(path, await this.screenshotBytes(options));
   }
 
+  async debug(options: DebugOptions = {}): Promise<string> {
+    return this.#adapter.debug(
+      await this.#resolver.query(),
+      options,
+      this.#resolver.description,
+    );
+  }
+
   async fill(value: string, options: FillOptions = {}): Promise<void> {
     const selector = await this.#resolver.resolve();
     await this.#adapter.fill(selector, value, options);
@@ -219,7 +296,9 @@ export class Locator {
 
   async press(key: string, options: PressOptions = {}): Promise<void> {
     const selector = await this.#resolver.resolve();
-    await this.#adapter.evaluate(`document.querySelector(${JSON.stringify(selector)})?.focus()`);
+    await this.#adapter.evaluate(
+      `document.querySelector(${JSON.stringify(selector)})?.focus()`,
+    );
     await this.#adapter.press(key, options);
   }
 
@@ -282,26 +361,32 @@ export class Locator {
         });
         return;
       case "visible":
-        await waitUntil(async () => {
-          const selector = await this.#resolver.query();
-          if (!selector) return false;
-          return this.#evaluateVisible(selector);
-        }, {
-          ...options,
-          timeout,
-          label: `${this.#resolver.description} to be visible`,
-        });
+        await waitUntil(
+          async () => {
+            const selector = await this.#resolver.query();
+            if (!selector) return false;
+            return this.#evaluateVisible(selector);
+          },
+          {
+            ...options,
+            timeout,
+            label: `${this.#resolver.description} to be visible`,
+          },
+        );
         return;
       case "hidden":
-        await waitUntil(async () => {
-          const selector = await this.#resolver.query();
-          if (!selector) return true;
-          return !(await this.#evaluateVisible(selector));
-        }, {
-          ...options,
-          timeout,
-          label: `${this.#resolver.description} to be hidden`,
-        });
+        await waitUntil(
+          async () => {
+            const selector = await this.#resolver.query();
+            if (!selector) return true;
+            return !(await this.#evaluateVisible(selector));
+          },
+          {
+            ...options,
+            timeout,
+            label: `${this.#resolver.description} to be hidden`,
+          },
+        );
         return;
     }
   }

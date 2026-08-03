@@ -24,3 +24,54 @@ test("saves failure screenshot when click fails", async () => {
     '[Page.click("#does-not-exist")]',
   );
 });
+
+test("page.debug returns a DOM snapshot with optional roles", async () => {
+  page = await Page.launch(
+    "data:text/html," +
+      encodeURIComponent(`
+        <html>
+          <body>
+            <main>
+              <button>Save</button>
+              <input aria-label="Email" />
+            </main>
+          </body>
+        </html>
+      `),
+  );
+
+  const output = await page.debug({ log: false, roles: true });
+
+  expect(output).toContain("<button>");
+  expect(output).toContain("Save");
+  expect(output).toContain("Available roles:");
+  expect(output).toContain("button:");
+  expect(output).toContain('Name "Save"');
+  expect(output).toContain("textbox:");
+  expect(output).toContain('Name "Email"');
+});
+
+test("locator.debug returns a subtree snapshot", async () => {
+  page = await Page.launch(
+    "data:text/html," +
+      encodeURIComponent(`
+        <html>
+          <body>
+            <main>
+              <button>Save</button>
+              <button>Cancel</button>
+            </main>
+          </body>
+        </html>
+      `),
+  );
+
+  const output = await page
+    .byRole("button", { name: "Save" })
+    .debug({ log: false });
+
+  expect(output).toContain('role="button" name="Save"');
+  expect(output).toContain("<button");
+  expect(output).toContain("Save");
+  expect(output).not.toContain("Cancel");
+});

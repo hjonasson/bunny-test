@@ -1,5 +1,46 @@
-import { expect as bunExpect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
+import { __serverInternals } from "./server";
 import { expect as e2eExpect, withServerPage } from "./index";
+
+const originalEnv = { ...process.env };
+
+afterEach(() => {
+  for (const key of Object.keys(process.env)) {
+    if (!(key in originalEnv)) {
+      delete process.env[key];
+    }
+  }
+
+  for (const [key, value] of Object.entries(originalEnv)) {
+    process.env[key] = value;
+  }
+});
+
+test("serverSpawnEnv removes inspector-related environment variables", () => {
+  process.env.BUN_INSPECT = "1";
+  process.env.BUN_INSPECT_BRK = "1";
+  process.env.NODE_OPTIONS = "--inspect";
+  process.env.VSCODE_INSPECTOR_OPTIONS = '{"foo":"bar"}';
+  process.env.APP_ENV = "test";
+
+  const env = __serverInternals.serverSpawnEnv();
+
+  expect(env.BUN_INSPECT).toBeUndefined();
+  expect(env.BUN_INSPECT_BRK).toBeUndefined();
+  expect(env.NODE_OPTIONS).toBeUndefined();
+  expect(env.VSCODE_INSPECTOR_OPTIONS).toBeUndefined();
+  expect(env.APP_ENV).toBe("test");
+});
+
+test("serverBindEnv derives host and port from the server URL", () => {
+  const env = __serverInternals.serverBindEnv({
+    command: ["bun", "run", "dev"],
+    url: "http://127.0.0.1:3000",
+  });
+
+  expect(env.HOST).toBe("127.0.0.1");
+  expect(env.PORT).toBe("3000");
+});
 
 test("withServerPage starts a server, waits for it, and opens the page", async () => {
   const port = 43000 + Math.floor(Math.random() * 1000);
@@ -25,7 +66,7 @@ test("withServerPage starts a server, waits for it, and opens the page", async (
     },
   );
 
-  bunExpect(title).toBe("Started");
+  expect(title).toBe("Started");
 });
 
 test("withServerPage can derive HOST and PORT from url", async () => {
@@ -52,7 +93,7 @@ test("withServerPage can derive HOST and PORT from url", async () => {
     },
   );
 
-  bunExpect(title).toBe("Derived");
+  expect(title).toBe("Derived");
 });
 
 test("withServerPage can disable derived HOST and PORT", async () => {
@@ -84,5 +125,5 @@ test("withServerPage can disable derived HOST and PORT", async () => {
     },
   );
 
-  bunExpect(title).toBe("Custom");
+  expect(title).toBe("Custom");
 });

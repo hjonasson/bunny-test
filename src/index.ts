@@ -27,8 +27,9 @@ export type {
 export type { LocatorScreenshotOptions } from "./locator";
 export type { ExpectOptions, ScreenshotExpectOptions } from "./expect";
 export type { ServerPageOptions, WaitForServerOptions } from "./server";
-export type { QueryOptions, RoleOptions } from "./query";
+export type { QueryMatcher, QueryOptions, RoleOptions } from "./query";
 export type { WaitOptions } from "./wait";
+export type { DebugOptions } from "./debug";
 
 /**
  * Launch a page, run a test function, capture a screenshot on failure,

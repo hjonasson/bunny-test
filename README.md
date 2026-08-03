@@ -105,6 +105,28 @@ test("front page shows welcome content", async () => {
 });
 ```
 
+When you use a slower dev server such as `next dev`, raise Bun's per-test timeout. `withServerPage()` can wait up to `server.timeout`, but it cannot override `bun test`'s default 5000ms test timeout for you.
+
+```ts
+import { test } from "bun:test";
+import { expect, withServerPage } from "bunny-test";
+
+test("front page shows welcome content", { timeout: 30000 }, async () => {
+  await withServerPage(
+    {
+      server: {
+        command: ["bun", "run", "dev"],
+        url: "http://127.0.0.1:3000",
+        timeout: 20000,
+      },
+    },
+    async (page) => {
+      await expect(page.byRole("heading", { name: /welcome/i })).toBeVisible();
+    },
+  );
+});
+```
+
 By default, `withServerPage()` derives `HOST` and `PORT` from `server.url`. You can still pass `env` for extra variables, customize the variable names with `bindEnv: { host: "APP_HOST", port: "APP_PORT" }`, or disable that behavior with `bindEnv: false`.
 
 If you already have a long-lived server managed elsewhere, use `withPage()` directly. If you only need readiness polling, `waitForServer()` is also exported as a lower-level helper.

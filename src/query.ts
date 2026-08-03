@@ -1,13 +1,16 @@
 import { ensureInjected } from "./inject";
 import type { EvaluateQueue } from "./evaluate-queue";
+import { renderDebug } from "./debug";
 
 export type QueryOptions = {
   exact?: boolean;
   timeout?: number;
 };
 
+export type QueryMatcher = string | RegExp;
+
 export type RoleOptions = QueryOptions & {
-  name?: string;
+  name?: QueryMatcher;
   hidden?: boolean;
 };
 
@@ -22,10 +25,35 @@ function rootExpr(rootSelector?: string): string {
 function tlCall(
   method: string,
   rootSelector: string | undefined,
-  value: string,
+  value: string | QueryMatcher,
   options: QueryOptions | RoleOptions,
 ): string {
-  return `window.__TL__.${method}(${rootExpr(rootSelector)}, ${JSON.stringify(value)}, ${JSON.stringify(options)})`;
+  return `window.__TL__.${method}(${rootExpr(rootSelector)}, ${serializeForPage(value)}, ${serializeForPage(options)})`;
+}
+
+function formatMatcher(value: QueryMatcher): string {
+  return value instanceof RegExp ? String(value) : `"${value}"`;
+}
+
+function serializeForPage(value: unknown): string {
+  if (value instanceof RegExp) {
+    return `new RegExp(${JSON.stringify(value.source)}, ${JSON.stringify(value.flags)})`;
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => serializeForPage(item)).join(", ")}]`;
+  }
+
+  if (value && typeof value === "object") {
+    return `{ ${Object.entries(value)
+      .map(
+        ([key, nested]) =>
+          `${JSON.stringify(key)}: ${serializeForPage(nested)}`,
+      )
+      .join(", ")} }`;
+  }
+
+  return JSON.stringify(value);
 }
 
 async function runQuery(
@@ -55,6 +83,7 @@ async function requireQuery(
   queue: EvaluateQueue,
   queryExpr: string,
   description: string,
+  debugOptions: { rootSelector?: string; roles?: boolean } = {},
 ): Promise<string> {
   await ensureInjected(view, queue);
 
@@ -76,8 +105,14 @@ async function requireQuery(
   );
 
   if (!result.ok) {
+    const debug = await renderDebug(
+      <T>(script: string) =>
+        queue.run(() => view.evaluate(script) as Promise<T>),
+      debugOptions.rootSelector,
+      { log: false, roles: debugOptions.roles },
+    );
     throw new Error(
-      `Could not find element: ${description} (${result.reason})`,
+      `Could not find element: ${description} (${result.reason})\n\n${debug}`,
     );
   }
   return result.selector;
@@ -103,7 +138,8 @@ export async function getByRoleWithin(
     view,
     queue,
     tlCall("getByRole", rootSelector, role, options),
-    `role="${role}"${options.name ? ` name="${options.name}"` : ""}`,
+    `role="${role}"${options.name ? ` name=${formatMatcher(options.name)}` : ""}`,
+    { rootSelector, roles: true },
   );
 }
 
@@ -133,7 +169,7 @@ export async function queryByRoleWithin(
 export async function getByText(
   view: Bun.WebView,
   queue: EvaluateQueue,
-  text: string,
+  text: QueryMatcher,
   options: QueryOptions = {},
 ): Promise<string> {
   return getByTextWithin(view, queue, undefined, text, options);
@@ -143,21 +179,22 @@ export async function getByTextWithin(
   view: Bun.WebView,
   queue: EvaluateQueue,
   rootSelector: string | undefined,
-  text: string,
+  text: QueryMatcher,
   options: QueryOptions = {},
 ): Promise<string> {
   return requireQuery(
     view,
     queue,
     tlCall("getByText", rootSelector, text, options),
-    `text="${text}"`,
+    `text=${formatMatcher(text)}`,
+    { rootSelector },
   );
 }
 
 export async function queryByText(
   view: Bun.WebView,
   queue: EvaluateQueue,
-  text: string,
+  text: QueryMatcher,
   options: QueryOptions = {},
 ): Promise<string | null> {
   return queryByTextWithin(view, queue, undefined, text, options);
@@ -167,7 +204,7 @@ export async function queryByTextWithin(
   view: Bun.WebView,
   queue: EvaluateQueue,
   rootSelector: string | undefined,
-  text: string,
+  text: QueryMatcher,
   options: QueryOptions = {},
 ): Promise<string | null> {
   return runQuery(
@@ -180,7 +217,7 @@ export async function queryByTextWithin(
 export async function getByLabelText(
   view: Bun.WebView,
   queue: EvaluateQueue,
-  text: string,
+  text: QueryMatcher,
   options: QueryOptions = {},
 ): Promise<string> {
   return getByLabelTextWithin(view, queue, undefined, text, options);
@@ -190,21 +227,22 @@ export async function getByLabelTextWithin(
   view: Bun.WebView,
   queue: EvaluateQueue,
   rootSelector: string | undefined,
-  text: string,
+  text: QueryMatcher,
   options: QueryOptions = {},
 ): Promise<string> {
   return requireQuery(
     view,
     queue,
     tlCall("getByLabelText", rootSelector, text, options),
-    `label="${text}"`,
+    `label=${formatMatcher(text)}`,
+    { rootSelector, roles: true },
   );
 }
 
 export async function queryByLabelText(
   view: Bun.WebView,
   queue: EvaluateQueue,
-  text: string,
+  text: QueryMatcher,
   options: QueryOptions = {},
 ): Promise<string | null> {
   return queryByLabelTextWithin(view, queue, undefined, text, options);
@@ -214,7 +252,7 @@ export async function queryByLabelTextWithin(
   view: Bun.WebView,
   queue: EvaluateQueue,
   rootSelector: string | undefined,
-  text: string,
+  text: QueryMatcher,
   options: QueryOptions = {},
 ): Promise<string | null> {
   return runQuery(
@@ -227,7 +265,7 @@ export async function queryByLabelTextWithin(
 export async function getByPlaceholderText(
   view: Bun.WebView,
   queue: EvaluateQueue,
-  text: string,
+  text: QueryMatcher,
   options: QueryOptions = {},
 ): Promise<string> {
   return getByPlaceholderTextWithin(view, queue, undefined, text, options);
@@ -237,21 +275,22 @@ export async function getByPlaceholderTextWithin(
   view: Bun.WebView,
   queue: EvaluateQueue,
   rootSelector: string | undefined,
-  text: string,
+  text: QueryMatcher,
   options: QueryOptions = {},
 ): Promise<string> {
   return requireQuery(
     view,
     queue,
     tlCall("getByPlaceholderText", rootSelector, text, options),
-    `placeholder="${text}"`,
+    `placeholder=${formatMatcher(text)}`,
+    { rootSelector },
   );
 }
 
 export async function queryByPlaceholderText(
   view: Bun.WebView,
   queue: EvaluateQueue,
-  text: string,
+  text: QueryMatcher,
   options: QueryOptions = {},
 ): Promise<string | null> {
   return queryByPlaceholderTextWithin(view, queue, undefined, text, options);
@@ -261,7 +300,7 @@ export async function queryByPlaceholderTextWithin(
   view: Bun.WebView,
   queue: EvaluateQueue,
   rootSelector: string | undefined,
-  text: string,
+  text: QueryMatcher,
   options: QueryOptions = {},
 ): Promise<string | null> {
   return runQuery(
@@ -292,6 +331,7 @@ export async function getByTestIdWithin(
     queue,
     tlCall("getByTestId", rootSelector, testId, options),
     `testId="${testId}"`,
+    { rootSelector },
   );
 }
 
@@ -329,6 +369,7 @@ export async function getByAltText(
     queue,
     `window.__TL__.getByAltText(document.body, ${JSON.stringify(text)}, ${JSON.stringify(options)})`,
     `alt="${text}"`,
+    {},
   );
 }
 
@@ -343,5 +384,6 @@ export async function getByTitle(
     queue,
     `window.__TL__.getByTitle(document.body, ${JSON.stringify(text)}, ${JSON.stringify(options)})`,
     `title="${text}"`,
+    {},
   );
 }
