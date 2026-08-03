@@ -8,6 +8,12 @@
 
 It is built for cases where you want to launch a real page, interact with it like a user, and make assertions against rendered UI, network activity, storage state, and screenshots.
 
+Why teams reach for it:
+
+- **Zero Browser Downloads:** Uses system WebKit and local browser installs out of the box.
+- **Instant Startup:** Starts fast for lightweight end-to-end checks without heavyweight test runner overhead.
+- **Built for Bun:** Native TypeScript with a small surface area and minimal extra tooling.
+
 Typical uses include:
 
 - checking that a page renders the expected content
