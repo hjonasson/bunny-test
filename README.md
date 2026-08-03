@@ -1,6 +1,8 @@
 # bunny-test
 
-![bunny-test logo](./assets/branding/bunny-test-readme.png)
+[![npm version](https://img.shields.io/npm/v/bunny-test.svg)](https://www.npmjs.com/package/bunny-test)
+
+![bunny-test logo](https://raw.githubusercontent.com/hjonasson/bunny-test/main/assets/branding/bunny-test-readme.png)
 
 `bunny-test` is a Bun-first browser testing library for small end-to-end and UI workflow tests.
 
