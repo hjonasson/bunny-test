@@ -66,11 +66,9 @@ test("front page renders expected content", async () => {
       },
     },
     async (page) => {
-      await expect(page).toHaveTitle("New React Router App");
-      await expect(page.byText("What's next?")).toBeVisible();
-      await expect(
-        page.byRole("link", { name: "React Router Docs" }),
-      ).toBeVisible();
+      await expect(page).toHaveTitle(/my app/i);
+      await expect(page.byRole("heading", { name: /welcome/i })).toBeVisible();
+      await expect(page.byRole("link", { name: /get started/i })).toBeVisible();
     },
   );
 });
@@ -143,21 +141,3 @@ UPDATE_SCREENSHOTS=1 bun test
 
 - Bun `>=1.3.14`
 - `bun test` as the test runner
-
-## Release checklist
-
-Before publishing a new version:
-
-1. Run `npm run build`.
-2. Run `bun test src/server.test.ts`.
-3. Run any broader `bun test` coverage you want for the release.
-4. Run `npm pack --dry-run` and inspect the tarball contents.
-5. Confirm `package.json` metadata is correct for the public repo and npm page.
-6. Bump `version` in `package.json`.
-7. Publish with `npm publish`.
-
-## Non-goals
-
-- full Playwright parity
-- cross-runner abstraction across Jest, Vitest, and Node-only environments
-- large-scale browser orchestration
