@@ -2,36 +2,43 @@
 
 ![bunny-test logo](./assets/branding/bunny-test-readme.png)
 
-`bunny-test` is a lightweight Bun-first end-to-end test framework for browser flows that need more fidelity than DOM-only testing, without trying to be Playwright.
+`bunny-test` is a Bun-first browser testing library for small end-to-end and UI workflow tests.
 
-Brand assets:
+It is built for cases where you want to launch a real page, interact with it like a user, and make assertions against rendered UI, network activity, storage state, and screenshots.
 
-- README banner: `assets/branding/bunny-test-readme.png`
-- Avatar: `assets/branding/bunny-test-avatar-512.png`
-- Favicon source: `assets/branding/bunny-test-favicon-64.png`
+Typical uses include:
 
-It is aimed at small, realistic tasks such as:
-
-- loading a real page and asserting visible UI
-- filling forms and clicking through flows
-- observing fetch/xhr traffic
-- mocking lightweight network interactions
-- persisting storage state between tests
+- checking that a page renders the expected content
+- filling forms and submitting flows
+- asserting on URL changes and visible text
+- waiting for network requests and mocking responses
+- persisting cookies and storage between sessions
 - comparing screenshots for visual regressions
 
 ## Scope
 
-`bunny-test` is intentionally narrow.
+`bunny-test` is designed for focused browser tests that stay close to `bun test`.
 
-- It is for lightweight browser automation and assertions.
-- It is not trying to match Playwright feature-for-feature.
-- It is designed to pair well with `bun test`.
+- It launches pages directly from Bun.
+- It provides page, locator, network, storage, and screenshot helpers.
+- It keeps setup small and test code explicit.
 
 ## Installation
 
 ```bash
 bun add -d bunny-test
 ```
+
+## Core API
+
+The main pieces are:
+
+- `Page` for launching and driving a page
+- `expect` for page and locator assertions
+- `withPage()` for scoped page setup and teardown
+- `withServerPage()` for starting an app process and opening it
+- `waitForServer()` for readiness polling
+- `screenshotName()` for stable screenshot snapshot names
 
 ## Quick start
 
@@ -45,13 +52,28 @@ test("user can submit the form", async () => {
   await page.fill("input[name='email']", "user@example.com");
   await page.click("button[type='submit']");
 
+  await expect(page.byText("Thanks for signing in")).toBeVisible();
   await expect(page).toHaveURL(/dashboard/);
+});
+```
+
+If you prefer scoped setup instead of `using`, you can wrap the test in `withPage()`:
+
+```ts
+import { test } from "bun:test";
+import { expect, withPage } from "bunny-test";
+
+test("account menu opens", async () => {
+  await withPage("http://localhost:3000", async (page) => {
+    await page.click("button[aria-label='Open account menu']");
+    await expect(page.byRole("menu")).toBeVisible();
+  });
 });
 ```
 
 ## Starting a real app
 
-For app-level tests, the easiest path should be one helper that starts the app, waits for readiness, opens the page, and tears everything down:
+Use `withServerPage()` when the test should start an application process, wait for it to become reachable, and clean it up afterward.
 
 ```ts
 import { test } from "bun:test";
@@ -74,7 +96,7 @@ test("front page renders expected content", async () => {
 });
 ```
 
-By default, `withServerPage()` derives `HOST` and `PORT` from `server.url`. You can still pass `env` for anything extra, customize the variable names with `bindEnv: { host: "APP_HOST", port: "APP_PORT" }`, or disable the behavior with `bindEnv: false`.
+By default, `withServerPage()` derives `HOST` and `PORT` from `server.url`. You can still pass `env` for extra variables, customize the variable names with `bindEnv: { host: "APP_HOST", port: "APP_PORT" }`, or disable that behavior with `bindEnv: false`.
 
 If you already have a long-lived server managed elsewhere, use `withPage()` directly. If you only need readiness polling, `waitForServer()` is also exported as a lower-level helper.
 
@@ -92,6 +114,24 @@ test("status message becomes visible", async () => {
   await expect(message).toHaveText("Ready");
 });
 ```
+
+Locators can also target roles and text:
+
+```ts
+const submit = page.byRole("button", { name: "Submit" });
+await expect(submit).toBeVisible();
+await submit.click();
+```
+
+## Network and state
+
+`bunny-test` can observe requests, wait for specific traffic, and carry state between runs.
+
+Common patterns include:
+
+- waiting for a request triggered by a click or form submission
+- mocking a lightweight API response for a single test
+- saving cookies and storage state, then restoring them for a later session
 
 ## Screenshot testing
 
@@ -136,6 +176,18 @@ To refresh baselines intentionally:
 ```bash
 UPDATE_SCREENSHOTS=1 bun test
 ```
+
+## When to use it
+
+`bunny-test` works well when your test needs a real page and a small amount of browser automation, but you still want the test body to stay close to normal Bun tests.
+
+It is a good fit for:
+
+- app smoke tests
+- UI workflow checks
+- screenshot regression coverage
+- request and response assertions
+- tests that need browser storage or cookies
 
 ## Current requirements
 
