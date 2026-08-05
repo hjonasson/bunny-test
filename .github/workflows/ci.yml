@@ -8,8 +8,16 @@ on:
 
 jobs:
   build:
-    name: Build and pack check
-    runs-on: ubuntu-latest
+    name: Build and pack check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-14
 
     steps:
       - name: Check out repository
@@ -31,7 +39,7 @@ jobs:
 
   test:
     name: Bun tests
-    runs-on: macos-latest
+    runs-on: macos-14
 
     steps:
       - name: Check out repository
