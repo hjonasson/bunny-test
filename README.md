@@ -37,6 +37,83 @@ Typical uses include:
 bun add -d bunny-test
 ```
 
+## Recommended setup
+
+For most apps, the best default is:
+
+- start the app once for the suite
+- preload one shared base URL with `bunfig.toml`
+- run the suite through one script that starts the app and then launches `bun test`
+
+This keeps tests close to normal Bun tests while avoiding per-test app startup.
+
+### 1. Add a shared setup file
+
+```toml
+# bunfig.toml
+[test]
+preload = ["./test/setup.ts"]
+timeout = 30000
+```
+
+```ts
+// test/setup.ts
+process.env.BROWSER_BASE_URL ??= "http://127.0.0.1:3000";
+```
+
+### 2. Start the app once and run the suite
+
+```ts
+// scripts/test.ts
+import { waitForServer } from "bunny-test";
+
+const url = "http://127.0.0.1:3000";
+
+const server = Bun.spawn(["bun", "run", "start"], {
+  stdout: "inherit",
+  stderr: "inherit",
+  env: {
+    ...process.env,
+    HOST: "127.0.0.1",
+    PORT: "3000",
+    BROWSER_BASE_URL: url,
+  },
+});
+
+try {
+  await waitForServer(url, { timeout: 20000 });
+
+  const tests = Bun.spawn(["bun", "test", ...process.argv.slice(2)], {
+    stdout: "inherit",
+    stderr: "inherit",
+    stdin: "inherit",
+    env: process.env,
+  });
+
+  process.exit(await tests.exited);
+} finally {
+  server.kill();
+}
+```
+
+### 3. Add one package script
+
+```json
+{
+  "scripts": {
+    "test": "bun run ./scripts/test.ts"
+  }
+}
+```
+
+Now the suite runs through one command:
+
+```bash
+bun run test
+```
+
+`npm test` can also follow this path if its script delegates to Bun, but `bunny-test` still requires Bun because the actual test process is `bun test` and the browser layer uses `Bun.WebView`.
+
 ## Core API
 
 The main pieces are:
@@ -88,7 +165,9 @@ This is usually the right fit for larger frontend apps, docs sites, and framewor
 
 Use `withServerPage()` when the test should fully own app startup, wait for the server, and clean it up afterward.
 
-## Starting a real app
+## App setup patterns
+
+### Existing server
 
 If the app is already running, prefer `withPage()`.
 
@@ -106,6 +185,8 @@ test("home page shows welcome content", async () => {
   });
 });
 ```
+
+### Self-contained startup with `withServerPage()`
 
 Use `withServerPage()` when the test should start an application process, wait for it to become reachable, and clean it up afterward.
 
@@ -164,37 +245,11 @@ By default, `withServerPage()` derives `HOST` and `PORT` from `server.url`. You 
 
 If you already have a long-lived server managed elsewhere, use `withPage()` directly. If you only need readiness polling, `waitForServer()` is also exported as a lower-level helper.
 
-## Running a whole suite
+### Shared server for a suite
 
-For most projects, the best default is simple:
+This is the recommended default setup described earlier.
 
-- start one app server outside the tests
-- preload one shared base URL for the suite
-- keep each test as a normal test that uses `withPage()`
-
-This keeps browser tests close to unit tests while still using a real page when needed.
-
-If you only want one robust, ergonomic setup to copy, use the three files below.
-
-More practical setup and stability advice lives in [docs/TIPS.md](./docs/TIPS.md).
-
-### 1. Add a shared setup file
-
-Bun can preload a setup file before tests. This is the closest equivalent to a `jest-setup.ts` file.
-
-```toml
-# bunfig.toml
-[test]
-preload = ["./test/setup.ts"]
-timeout = 30000
-```
-
-```ts
-// test/setup.ts
-process.env.BROWSER_BASE_URL ??= "http://127.0.0.1:3000";
-```
-
-Then your tests can assume a base URL.
+Once `bunfig.toml` and the wrapper script are in place, each test stays small and uses `withPage()` against `process.env.BROWSER_BASE_URL`.
 
 ```ts
 import { test } from "bun:test";
@@ -209,69 +264,7 @@ test("account menu opens", async () => {
 });
 ```
 
-### 2. Start the app once for the suite
-
-Use a small wrapper script to start the app, wait for it, run `bun test`, and stop the app when the run finishes.
-
-```ts
-// scripts/test.ts
-import { waitForServer } from "bunny-test";
-
-const url = "http://127.0.0.1:3000";
-
-const server = Bun.spawn(["bun", "run", "start"], {
-  stdout: "inherit",
-  stderr: "inherit",
-  env: {
-    ...process.env,
-    HOST: "127.0.0.1",
-    PORT: "3000",
-    BROWSER_BASE_URL: url,
-  },
-});
-
-try {
-  await waitForServer(url, { timeout: 20000 });
-
-  const tests = Bun.spawn(["bun", "test", ...process.argv.slice(2)], {
-    stdout: "inherit",
-    stderr: "inherit",
-    stdin: "inherit",
-    env: process.env,
-  });
-
-  process.exit(await tests.exited);
-} finally {
-  server.kill();
-}
-```
-
-### 3. Add one package script
-
-```json
-{
-  "scripts": {
-    "test": "bun run ./scripts/test.ts"
-  }
-}
-```
-
-Now the whole suite runs through your normal test script:
-
-```bash
-bun run test
-```
-
-If you also use `npm test`, it will follow the same path.
-
-`bun test` itself does not run `package.json` scripts first, so if you want the app server to start automatically from a wrapper, use `bun run test` for this setup.
-
-- same test files
-- same `test()` functions
-- same per-test isolation at the page level
-- no special per-test server lifecycle unless you explicitly want it
-
-Use `withServerPage()` when a test should be fully self-contained. Use the shared-server pattern above when you want the lowest friction for a larger suite.
+More practical setup and stability advice lives in [docs/TIPS.md](./docs/TIPS.md).
 
 ## Minimal visual smoke test
 
