@@ -1,6 +1,6 @@
 {
   "name": "bunny-test",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "A lightweight Bun-first end-to-end test framework for small browser flows.",
   "author": "hjonasson",
   "license": "MIT",
