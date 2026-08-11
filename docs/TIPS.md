@@ -76,6 +76,89 @@ For a first browser-backed test, start with SSR-stable content and one narrow sc
 
 That often means checking the title, one heading or CTA, and one masked screenshot of the most important stable region.
 
+## Prefer app-level metrics for memory soak tests
+
+When you are using `memorySoak()`, the most reliable checks usually come from app-level counters rather than raw heap size alone.
+
+If your app can expose test-only diagnostics on `window.__LEAK_METRICS__`, you can assert that listeners, subscriptions, timers, sockets, or cache entries return to baseline after repeated mount and teardown cycles.
+
+```ts
+import { test } from "bun:test";
+import { memorySoak, readGlobalMetrics, withPage } from "bunny-test";
+
+test("dialog open/close does not leak", async () => {
+  await withPage(process.env.BROWSER_BASE_URL!, async (page) => {
+    await memorySoak(page, {
+      iterations: 50,
+      warmup: 5,
+      sampleEvery: 5,
+      action: async (page, iteration) => {
+        await page.click("[aria-label='Open search']");
+        await page.fill("input[aria-label='Search']", `query-${iteration}`);
+        await page.click("[aria-label='Close search']");
+      },
+      settle: async (page) => {
+        await page.waitFor("window.__appIdle === true", { timeout: 3000 });
+      },
+      sample: readGlobalMetrics({
+        leak: "window.__LEAK_METRICS__",
+      }),
+      assert(report) {
+        report.expectStable("domNodes", { maxGrowth: 10 });
+        report.expectStable("leak.listeners", { maxGrowth: 0 });
+        report.expectStable("leak.timers", { maxGrowth: 0 });
+      },
+    });
+  });
+});
+```
+
+This pattern is usually more actionable than asserting directly on `heapUsed`, because a failing counter points to the exact class of teardown bug you need to fix.
+
+If your app already exposes test-only globals, do not repeat a custom `page.evaluate(...)` block in every test. `readGlobalMetrics()` keeps those samples terse.
+
+```ts
+sample: readGlobalMetrics({
+  leak: "window.__LEAK_METRICS__",
+  cart: "window.__APP_DEBUG__.cart",
+});
+```
+
+## Use countDomMetrics for DOM-count samples
+
+If your soak check is mostly about DOM shape, visible control duplication, or embedded frame counts, prefer `countDomMetrics()` instead of writing a custom `page.evaluate(...)` block.
+
+```ts
+import { countDomMetrics, memorySoak, withPage } from "bunny-test";
+
+test("cart toggle does not duplicate controls", async () => {
+  await withPage(process.env.BROWSER_BASE_URL!, async (page) => {
+    await memorySoak(page, {
+      iterations: 10,
+      warmup: 5,
+      sampleEvery: 5,
+      action: async (page) => {
+        await page.click("button[aria-label='Add to Cart']");
+        await page.click("button[aria-label='Remove from Cart']");
+      },
+      sample: countDomMetrics({
+        frames: "iframe",
+        addButtons: { selector: "button", text: "Add to Cart" },
+        removeButtons: { selector: "button", text: "Remove from Cart" },
+      }),
+      assert(report) {
+        report.expectStable("domNodes", { maxGrowth: 20 });
+        report.expectStable("frames", { maxGrowth: 0 });
+        report.expectStable("addButtons", { maxGrowth: 0 });
+        report.expectStable("removeButtons", { maxGrowth: 0 });
+      },
+    });
+  });
+});
+```
+
+Use app-level counters when you can, but for many real regressions this helper is enough to catch duplicated buttons, leftover portals, repeated embeds, or controls that never get torn down.
+
 ## Triage failures by layer
 
 When a first test fails, separate the failure before changing the assertion strategy.

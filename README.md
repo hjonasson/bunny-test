@@ -39,7 +39,9 @@ bun add -d bunny-test
 
 ## Recommended setup
 
-For most apps, the best default is:
+For most apps, start with one shared app server for the suite and point tests at a shared base URL.
+
+That usually means:
 
 - start the app once for the suite
 - preload one shared base URL with `bunfig.toml`
@@ -106,13 +108,13 @@ try {
 }
 ```
 
-Now the suite runs through one command:
+Run the suite through one command:
 
 ```bash
 bun run test
 ```
 
-`npm test` can also follow this path if its script delegates to Bun, but `bunny-test` still requires Bun because the actual test process is `bun test` and the browser layer uses `Bun.WebView`.
+If your package script delegates to Bun, `npm test` can call that script too. The underlying test process still needs Bun because the browser layer uses `Bun.WebView`.
 
 ## Core API
 
@@ -120,10 +122,109 @@ The main pieces are:
 
 - `Page` for launching and driving a page
 - `expect` for page and locator assertions
+- `countDomMetrics()` for common memory-soak selector and text-count sampling
+- `readGlobalMetrics()` for app-level globals like `window.__LEAK_METRICS__`
+- `memorySoak()` for repeated leak and teardown checks over a real page session
 - `withPage()` for scoped page setup and teardown
 - `withServerPage()` for starting an app process and opening it
 - `waitForServer()` for readiness polling
 - `screenshotName()` for stable screenshot snapshot names
+
+## Memory soak testing
+
+`memorySoak()` is a higher-level helper for repeated interaction tests where you want to catch unbounded DOM growth, leaked listeners, leftover timers, or custom app diagnostics that should return to baseline.
+
+The helper runs one action many times, lets the page settle, samples metrics, and returns a report with baseline, recorded samples, and helpers like `expectStable()`.
+
+```ts
+import { test } from "bun:test";
+import { memorySoak, readGlobalMetrics, withPage } from "bunny-test";
+
+test("search dialog does not leak", async () => {
+  await withPage(process.env.BROWSER_BASE_URL!, async (page) => {
+    await memorySoak(page, {
+      iterations: 50,
+      warmup: 5,
+      sampleEvery: 5,
+      action: async (page) => {
+        await page.click("[aria-label='Open search']");
+        await page.fill("input[type='search']", "alpha");
+        await page.click("[aria-label='Close search']");
+      },
+      settle: async (page) => {
+        await page.waitFor("window.__appIdle === true", { timeout: 3000 });
+      },
+      sample: readGlobalMetrics({
+        leak: "window.__LEAK_METRICS__",
+      }),
+      assert(report) {
+        report.expectStable("domNodes", { maxGrowth: 10 });
+        report.expectStable("leak.listeners", { maxGrowth: 0 });
+        report.expectStable("leak.timers", { maxGrowth: 0 });
+      },
+    });
+  });
+});
+```
+
+`memorySoak()` includes these built-in metrics unless you disable them with `includeDefaultSample: false`:
+
+- `domNodes`
+- `heapUsed` when `performance.memory` is available
+- `heapTotal` when `performance.memory` is available
+
+If your app exposes test-only diagnostics such as `window.__LEAK_METRICS__`, prefer asserting on those app-level counters. They are usually more stable and more actionable than raw heap size.
+
+Use the helper that matches the kind of signal you have:
+
+| Helper                | Use it when                                                               | Typical checks                                                           |
+| --------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `readGlobalMetrics()` | the app already exposes test-only debug state on `window` or `globalThis` | listeners, timers, subscriptions, sockets, cache entries                 |
+| `countDomMetrics()`   | the regression is visible in rendered DOM state                           | duplicated buttons, leftover portals, embedded frames, repeated controls |
+
+For app-level diagnostics, prefer `readGlobalMetrics()` over hand-writing a `page.evaluate(...)` callback.
+
+```ts
+sample: readGlobalMetrics({
+  leak: "window.__LEAK_METRICS__",
+  cart: "window.__APP_DEBUG__.cart",
+});
+```
+
+For DOM-counting checks, prefer `countDomMetrics()` over hand-writing a `page.evaluate(...)` callback every time.
+
+```ts
+import { countDomMetrics, memorySoak, withPage } from "bunny-test";
+
+test("cart toggle does not leak DOM state", async () => {
+  await withPage(process.env.BROWSER_BASE_URL!, async (page) => {
+    await memorySoak(page, {
+      iterations: 10,
+      warmup: 5,
+      sampleEvery: 5,
+      action: async (page) => {
+        await page.click("button[aria-label='Add to Cart']");
+        await page.click("button[aria-label='Remove from Cart']");
+      },
+      sample: countDomMetrics({
+        frames: "iframe",
+        addButtons: { selector: "button", text: "Add to Cart" },
+        removeButtons: { selector: "button", text: "Remove from Cart" },
+      }),
+      assert(report) {
+        report.expectStable("domNodes", { maxGrowth: 20 });
+        report.expectStable("frames", { maxGrowth: 0 });
+        report.expectStable("addButtons", { maxGrowth: 0 });
+        report.expectStable("removeButtons", { maxGrowth: 0 });
+      },
+    });
+  });
+});
+```
+
+This keeps the test logic focused on the workflow and the stability assertions, instead of repeating DOM query boilerplate inside `sample`.
+
+For a fuller app-level example that combines `withServerPage()`, `countDomMetrics()`, `readGlobalMetrics()`, retries, and scrolling, see [docs/MEMORY_SOAK_EXAMPLE.md](./docs/MEMORY_SOAK_EXAMPLE.md).
 
 ## Quick start
 
@@ -143,7 +244,7 @@ test("user can sign in", async () => {
 });
 ```
 
-If you prefer scoped setup instead of `using`, you can wrap the test in `withPage()`:
+If you want scoped setup instead of `using`, wrap the test in `withPage()`:
 
 ```ts
 import { test } from "bun:test";
@@ -159,9 +260,9 @@ test("account menu opens", async () => {
 
 ## Choosing a setup style
 
-Use `withPage()` by default when your app is already running, expensive to boot, or managed outside the test process.
+Use `withPage()` when your app is already running, expensive to boot, or managed outside the test process.
 
-This is usually the right fit for larger frontend apps, docs sites, and framework dev servers.
+That is usually the right fit for larger frontend apps, docs sites, and framework dev servers.
 
 Use `withServerPage()` when the test should fully own app startup, wait for the server, and clean it up afterward.
 
@@ -241,13 +342,13 @@ test("front page shows welcome content", { timeout: 30000 }, async () => {
 });
 ```
 
-By default, `withServerPage()` derives `HOST` and `PORT` from `server.url`. You can still pass `env` for extra variables, customize the variable names with `bindEnv: { host: "APP_HOST", port: "APP_PORT" }`, or disable that behavior with `bindEnv: false`.
+`withServerPage()` derives `HOST` and `PORT` from `server.url` unless you disable that behavior with `bindEnv: false`. You can still pass extra variables with `env` or customize the variable names with `bindEnv: { host: "APP_HOST", port: "APP_PORT" }`.
 
-If you already have a long-lived server managed elsewhere, use `withPage()` directly. If you only need readiness polling, `waitForServer()` is also exported as a lower-level helper.
+If you already have a long-lived server managed elsewhere, use `withPage()` directly. If you only need readiness polling, use `waitForServer()`.
 
 ### Shared server for a suite
 
-This is the recommended default setup described earlier.
+Use this pattern when your suite already starts one shared app process and exposes `process.env.BROWSER_BASE_URL`.
 
 Once `bunfig.toml` and the wrapper script are in place, each test stays small and uses `withPage()` against `process.env.BROWSER_BASE_URL`.
 
@@ -331,7 +432,7 @@ test("status message becomes visible", async () => {
 });
 ```
 
-Locators can also target roles and text:
+Locators can target roles and text as well:
 
 ```ts
 const submit = page.byRole("button", { name: "Submit" });

@@ -3,8 +3,31 @@ export { Browser } from "./browser";
 export { BrowserContext } from "./browser-context";
 export { Locator } from "./locator";
 export { expect } from "./expect";
+export {
+  memorySoak,
+  defaultMemorySample,
+  countDomMetrics,
+  readGlobalMetrics,
+} from "./memory-soak";
 export { screenshotName } from "./screenshot";
 export { waitForServer, withServerPage } from "./server";
+export type {
+  DefaultMemorySample,
+  DomMetricCounts,
+  DomMetricMatcher,
+  DomMetricMatcherOptions,
+  DomMetricMatchers,
+  GlobalMetricPaths,
+  GlobalMetricSnapshot,
+  MemoryMetricObject,
+  MemoryMetricPrimitive,
+  MemoryMetricValue,
+  MemorySoakExpectationOptions,
+  MemorySoakOptions,
+  MemorySoakReport,
+  MemorySoakSample,
+  MemorySoakSummaryRow,
+} from "./memory-soak";
 export type {
   RoutePattern,
   RouteMockOptions,
