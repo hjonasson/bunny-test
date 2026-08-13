@@ -9,6 +9,10 @@ export {
   countDomMetrics,
   readGlobalMetrics,
 } from "./memory-soak";
+export {
+  measureNavigation,
+  expectNavigationPerformance,
+} from "./navigation-performance";
 export { screenshotName } from "./screenshot";
 export { waitForServer, withServerPage } from "./server";
 export type {
@@ -28,6 +32,15 @@ export type {
   MemorySoakSample,
   MemorySoakSummaryRow,
 } from "./memory-soak";
+export type {
+  ExpectNavigationPerformanceOptions,
+  MeasureNavigationOptions,
+  NavigationMeasurement,
+  NavigationPhaseOptions,
+  NavigationPhaseResult,
+  NavigationSignal,
+  NavigationSignalResult,
+} from "./navigation-performance";
 export type {
   RoutePattern,
   RouteMockOptions,

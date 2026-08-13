@@ -26,5 +26,15 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
-  }
+  },
+  "include": [
+    "index.ts",
+    "src/**/*.ts",
+    "src/**/*.test.ts",
+    "src/testing-library-bundle.js"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules"
+  ]
 }

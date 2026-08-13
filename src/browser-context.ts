@@ -31,6 +31,7 @@ export class BrowserContext {
   readonly #pages = new Set<Page>();
   readonly #routes = new Map<number, SerializedRouteMock>();
   #storageState: StorageState = { cookies: [], origins: [] };
+  #storageStatePath: string | null = null;
   #nextRouteId = 1;
 
   constructor(options: BrowserContextOptions = {}) {
@@ -58,6 +59,34 @@ export class BrowserContext {
   async setStorageState(state: StorageState): Promise<void> {
     this.#storageState = state;
     await Promise.all(this.pages().map((page) => page.syncStorageState(state)));
+  }
+
+  async saveStorageState(path?: string): Promise<string> {
+    const resolvedPath = path ?? this.#defaultStorageStatePath();
+    const state = await this.storageState();
+    await Bun.write(resolvedPath, JSON.stringify(state, null, 2));
+    return resolvedPath;
+  }
+
+  async loadStorageState(path?: string): Promise<void> {
+    const resolvedPath = path ?? this.#defaultStorageStatePath();
+    const file = Bun.file(resolvedPath);
+    if (!(await file.exists())) {
+      throw new Error(`Storage state file not found: ${resolvedPath}`);
+    }
+
+    const state = JSON.parse(await file.text()) as StorageState;
+    await this.setStorageState(state);
+  }
+
+  #defaultStorageStatePath(): string {
+    if (this.#storageStatePath) {
+      return this.#storageStatePath;
+    }
+
+    const tmpDir = Bun.env.TMPDIR ?? Bun.env.TMP ?? "/tmp";
+    this.#storageStatePath = `${tmpDir}/bunny-test-storage-${crypto.randomUUID()}.json`;
+    return this.#storageStatePath;
   }
 
   async cookies(): Promise<CookieState[]> {

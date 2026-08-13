@@ -450,6 +450,41 @@ Common patterns include:
 - mocking a lightweight API response for a single test
 - saving cookies and storage state, then restoring them for a later session
 
+### Authenticated app flows
+
+For apps that require a login, the usual pattern is to authenticate once, save the browser state, and then restore that state into a fresh browser context for each later test.
+
+```ts
+import { test } from "bun:test";
+import { Browser } from "bunny-test";
+
+test("login once and reuse auth state", async () => {
+  const browser = await Browser.launch();
+  const context = await browser.newContext();
+  const page = await context.newPage("https://app.example.com/login");
+
+  await page.fill("#email", "user@example.com");
+  await page.fill("#password", "secret");
+  await page.click("button[type='submit']");
+
+  const stateFile = await context.saveStorageState();
+  console.log("Auth state saved to", stateFile);
+  await browser.close();
+});
+
+test("dashboard is visible for authenticated users", async () => {
+  const browser = await Browser.launch();
+  const context = await browser.newContext();
+  await context.loadStorageState("./auth-state.json");
+
+  const page = await context.newPage("https://app.example.com/dashboard");
+  await page.expect("text=Welcome back").toBeVisible();
+  await browser.close();
+});
+```
+
+If you want a durable file on disk, pass a path such as `./auth-state.json`. If you want the library to manage the temporary location for you, call `saveStorageState()` with no path and keep the returned value for the restore call.
+
 ## Screenshot testing
 
 ```ts

@@ -38,6 +38,13 @@ import {
 import { ensureInjected } from "./inject";
 import { EvaluateQueue } from "./evaluate-queue";
 import { renderDebug, type DebugOptions } from "./debug";
+import {
+  measureNavigation as measurePageNavigation,
+  expectNavigationPerformance as expectPageNavigationPerformance,
+  type ExpectNavigationPerformanceOptions,
+  type MeasureNavigationOptions,
+  type NavigationMeasurement,
+} from "./navigation-performance";
 import type { CookieState } from "./browser-context";
 import {
   Locator,
@@ -425,6 +432,18 @@ export class Page {
     options: WaitOptions = {},
   ): Promise<NetworkResponse> {
     return this.#waitForNetworkEvent("response", matcher, options);
+  }
+
+  async measureNavigation(
+    options: MeasureNavigationOptions,
+  ): Promise<NavigationMeasurement> {
+    return measurePageNavigation(this, options);
+  }
+
+  async expectNavigationPerformance(
+    options: ExpectNavigationPerformanceOptions,
+  ): Promise<NavigationMeasurement> {
+    return expectPageNavigationPerformance(this, options);
   }
 
   async debug(options: DebugOptions = {}): Promise<string> {
