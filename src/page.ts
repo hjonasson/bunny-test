@@ -194,7 +194,7 @@ export class Page {
   }
 
   async screenshot(path: string): Promise<void> {
-    await Bun.write(path, await this.screenshotBytes());
+    await Bun.write(path, Buffer.from(await (await this.screenshotBytes()).arrayBuffer()));
   }
 
   /**
@@ -208,7 +208,7 @@ export class Page {
   async #screenshotOnFailure(context: string): Promise<void> {
     try {
       const filename = `failure-${context}-${Date.now()}.png`;
-      await Bun.write(filename, await this.screenshotBytes());
+      await Bun.write(filename, Buffer.from(await (await this.screenshotBytes()).arrayBuffer()));
       console.error(`  📸 Screenshot saved: ${filename}`);
     } catch {
       // Don't let screenshot failure mask the original error

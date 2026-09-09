@@ -278,7 +278,7 @@ export class Locator {
     path: string,
     options: LocatorScreenshotOptions = {},
   ): Promise<void> {
-    await Bun.write(path, await this.screenshotBytes(options));
+    await Bun.write(path, Buffer.from(await (await this.screenshotBytes(options)).arrayBuffer()));
   }
 
   async debug(options: DebugOptions = {}): Promise<string> {
