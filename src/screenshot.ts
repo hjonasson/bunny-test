@@ -37,25 +37,25 @@ export async function assertScreenshot(
   const shouldUpdate =
     options.updateSnapshots ?? process.env.UPDATE_SCREENSHOTS === "1";
 
-  const actualBytes = await capture();
+  const actualBlob = await capture();
+  const actualBuffer = await blobToBuffer(actualBlob);
   await ensureDirectory(dirname(snapshotPath));
 
   const baselineFile = Bun.file(snapshotPath);
   const baselineExists = await baselineFile.exists();
 
   if (!baselineExists || shouldUpdate) {
-    await Bun.write(snapshotPath, actualBytes);
+    await Bun.write(snapshotPath, actualBuffer);
     return;
   }
 
   const baselineBytes = new Uint8Array(await baselineFile.arrayBuffer());
-  const actualBuffer = new Uint8Array(await actualBytes.arrayBuffer());
   const baseline = PNG.sync.read(Buffer.from(baselineBytes));
   const actual = PNG.sync.read(Buffer.from(actualBuffer));
 
   if (baseline.width !== actual.width || baseline.height !== actual.height) {
     await ensureDirectory(dirname(actualPath));
-    await Bun.write(actualPath, actualBytes);
+    await Bun.write(actualPath, actualBuffer);
     throw new Error(
       `Screenshot size mismatch for "${name}": expected ${baseline.width}x${baseline.height}, received ${actual.width}x${actual.height}. Actual written to ${actualPath}`,
     );
@@ -79,7 +79,7 @@ export async function assertScreenshot(
 
   await ensureDirectory(dirname(actualPath));
   await ensureDirectory(dirname(diffPath));
-  await Bun.write(actualPath, actualBytes);
+  await Bun.write(actualPath, actualBuffer);
   await Bun.write(diffPath, PNG.sync.write(diff));
   throw new Error(
     `Screenshot mismatch for "${name}": ${diffPixels} pixels differ. Baseline: ${snapshotPath}. Actual: ${actualPath}. Diff: ${diffPath}`,
@@ -137,4 +137,11 @@ function ensurePngExtension(name: string): string {
 
 async function ensureDirectory(path: string): Promise<void> {
   await mkdir(path, { recursive: true });
+}
+
+// Bun.write(path, blob) serialises the Blob as "[object Blob]" in Bun ≥1.4
+// instead of writing its bytes. Read through arrayBuffer() first to be safe
+// across all versions.
+async function blobToBuffer(blob: Blob): Promise<Buffer> {
+  return Buffer.from(await blob.arrayBuffer());
 }
