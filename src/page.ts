@@ -59,6 +59,10 @@ function formatMatcher(value: QueryMatcher): string {
   return value instanceof RegExp ? String(value) : `"${value}"`;
 }
 
+async function resolveSelector(target: string | Locator): Promise<string> {
+  return target instanceof Locator ? target.selector() : target;
+}
+
 export class Page {
   // Private so tests never access the view directly
   readonly #view: Bun.WebView;
@@ -455,10 +459,11 @@ export class Page {
   // -------------------------
 
   /**
-   * Click an element by CSS selector.
+   * Click an element by CSS selector or Locator.
    * Automatically waits for the element to be actionable.
    */
-  async click(selector: string, options: ClickOptions = {}): Promise<void> {
+  async click(target: string | Locator, options: ClickOptions = {}): Promise<void> {
+    const selector = await resolveSelector(target);
     await this.#slowMo();
     try {
       await this.#view.click(selector, { timeout: options.timeout ?? 10_000 });
@@ -499,10 +504,11 @@ export class Page {
    * before the next action runs.
    */
   async fill(
-    selector: string,
+    target: string | Locator,
     text: string,
     options: FillOptions = {},
   ): Promise<void> {
+    const selector = await resolveSelector(target);
     await this.#slowMo();
     try {
       // click() auto-waits for actionability
@@ -536,10 +542,11 @@ export class Page {
    * Use this for buttons that trigger navigation or async state changes.
    */
   async clickAndWait(
-    selector: string,
+    target: string | Locator,
     waitFor: { url?: string | RegExp; selector?: string },
     options: ClickOptions = {},
   ): Promise<void> {
+    const selector = await resolveSelector(target);
     try {
       await this.#view.click(selector, { timeout: options.timeout ?? 10_000 });
 
@@ -559,7 +566,8 @@ export class Page {
   /**
    * Select an option in a <select> element by its visible text.
    */
-  async selectOption(selector: string, text: string): Promise<void> {
+  async selectOption(target: string | Locator, text: string): Promise<void> {
+    const selector = await resolveSelector(target);
     try {
       await this.waitForSelector(selector);
       await this.#queue.run(() =>
@@ -581,7 +589,8 @@ export class Page {
   /**
    * Check or uncheck a checkbox.
    */
-  async setChecked(selector: string, checked: boolean): Promise<void> {
+  async setChecked(target: string | Locator, checked: boolean): Promise<void> {
+    const selector = await resolveSelector(target);
     try {
       await this.waitForSelector(selector);
       const current = await this.#queue.run(
@@ -606,9 +615,10 @@ export class Page {
   // -------------------------
 
   async waitForSelector(
-    selector: string,
+    target: string | Locator,
     options: WaitOptions = {},
   ): Promise<void> {
+    const selector = await resolveSelector(target);
     try {
       await waitForSelector(this.#view, this.#queue, selector, options);
     } catch (err) {
@@ -618,9 +628,10 @@ export class Page {
   }
 
   async waitForVisible(
-    selector: string,
+    target: string | Locator,
     options: WaitOptions = {},
   ): Promise<void> {
+    const selector = await resolveSelector(target);
     try {
       await waitForVisible(this.#view, this.#queue, selector, options);
     } catch (err) {
@@ -632,9 +643,10 @@ export class Page {
   }
 
   async waitForGone(
-    selector: string,
+    target: string | Locator,
     options: WaitOptions = {},
   ): Promise<void> {
+    const selector = await resolveSelector(target);
     try {
       await waitForGone(this.#view, this.#queue, selector, options);
     } catch (err) {
@@ -646,10 +658,11 @@ export class Page {
   }
 
   async waitForValue(
-    selector: string,
+    target: string | Locator,
     expected: string,
     options: WaitOptions = {},
   ): Promise<void> {
+    const selector = await resolveSelector(target);
     try {
       await waitForValue(this.#view, this.#queue, selector, expected, options);
     } catch (err) {
@@ -673,10 +686,11 @@ export class Page {
   }
 
   async waitForText(
-    selector: string,
+    target: string | Locator,
     pattern: string | RegExp,
     options: WaitOptions = {},
   ): Promise<void> {
+    const selector = await resolveSelector(target);
     try {
       await waitForText(this.#view, this.#queue, selector, pattern, options);
     } catch (err) {
@@ -939,9 +953,10 @@ export class Page {
    * Assert an element exists in the DOM within the timeout.
    */
   async assertExists(
-    selector: string,
+    target: string | Locator,
     options: WaitOptions = {},
   ): Promise<void> {
+    const selector = await resolveSelector(target);
     try {
       await waitForSelector(this.#view, this.#queue, selector, options);
     } catch {
@@ -956,9 +971,10 @@ export class Page {
    * Assert an element does NOT exist in the DOM.
    */
   async assertAbsent(
-    selector: string,
+    target: string | Locator,
     options: WaitOptions = {},
   ): Promise<void> {
+    const selector = await resolveSelector(target);
     try {
       await waitForGone(this.#view, this.#queue, selector, options);
     } catch {
@@ -973,10 +989,11 @@ export class Page {
    * Assert an element's text content matches within the timeout.
    */
   async assertText(
-    selector: string,
+    target: string | Locator,
     pattern: string | RegExp,
     options: WaitOptions = {},
   ): Promise<void> {
+    const selector = await resolveSelector(target);
     try {
       await waitForText(this.#view, this.#queue, selector, pattern, options);
     } catch {
@@ -999,10 +1016,11 @@ export class Page {
    * Assert an input's value matches within the timeout.
    */
   async assertValue(
-    selector: string,
+    target: string | Locator,
     expected: string,
     options: WaitOptions = {},
   ): Promise<void> {
+    const selector = await resolveSelector(target);
     try {
       await waitForValue(this.#view, this.#queue, selector, expected, options);
     } catch {
@@ -1042,9 +1060,10 @@ export class Page {
    * Assert an element is visible within the timeout.
    */
   async assertVisible(
-    selector: string,
+    target: string | Locator,
     options: WaitOptions = {},
   ): Promise<void> {
+    const selector = await resolveSelector(target);
     try {
       await waitForVisible(this.#view, this.#queue, selector, options);
     } catch {
